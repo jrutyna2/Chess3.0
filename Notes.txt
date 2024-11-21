@@ -22,3 +22,15 @@ October 16
 
 October 18
 - Added Reset game function for New Game button.
+
+Chess3.0
+- Add play as white or play as black option.
+- Create board quantitative analysis function.
+- Create best move function.
+- Implement minimax function for computer player.
+
+November 18
+- Added Play vs Computer or 2-player option + functionality.
+- Board flips if user selects black.
+- Basic computer player - plays first calculated move.
+- Fixed En-Passant error.

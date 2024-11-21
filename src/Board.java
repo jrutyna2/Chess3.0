@@ -17,6 +17,8 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
     private King bk;
 
     private boolean whiteTurn;
+    private boolean playerMove;
+    private boolean computer;
 
     private boolean whiteQueenSideCastle = false;
     private boolean whiteKingSideCastle = false;
@@ -25,7 +27,12 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
 
     private Square pawnDoubleMoved;
 
+    public String gameMode;
+
     public Board() {
+        // Ask the user for game mode
+        gameMode = selectGameMode();
+
         setLayout(new GridLayout(8, 8));
         squares = new Square[8][8];
         Wpieces = new LinkedList<Piece>();
@@ -33,19 +40,184 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
         initializeBoard();
 
         whiteTurn = true;
+        if (gameMode.equals("White")) {
+            playerMove = true;
+            computer = true;
+        }
+        else if (gameMode.equals("Black")) {
+            playerMove = false;
+            computer = true;
+            computerMove();
+        }
+        else {
+            playerMove = true;
+            computer = false;
+        }
     }
 
+    private void computerMove() {
+        LinkedList<Piece> pieces = whiteTurn ? Wpieces : Bpieces;
+        // Get all legal moves
+        Map<Piece, List<Square>> legalMovesMap = getAllLegalMoves(pieces);
+        for (Map.Entry<Piece, List<Square>> entry : legalMovesMap.entrySet()) {
+            Piece piece = entry.getKey();
+            List<Square> moves = entry.getValue();
+
+            if (!moves.isEmpty()) {
+                Square targetSquare = moves.get(0);
+                if (targetSquare.isOccupied()) {
+                    piece.capture(this, targetSquare);
+                }
+                else {
+                    pawnDoubleMoved = null;
+                    checkIfPawnDiagonalMove(piece.getSquare(), targetSquare);
+                    piece.move(targetSquare, true);
+                    checkIfCastlingMove(piece.getSquare(), targetSquare);
+                    checkIfPawnDoubleMoved(piece.getSquare(), targetSquare);
+                }
+                checkPromotion();
+                endTurn();
+                return;
+            }
+
+        }
+        System.out.println("No valid moves for the computer!");
+    }
+
+    private void endTurn() {
+        whiteTurn = !whiteTurn;
+        if (computer) playerMove = !playerMove;
+        clearHighlights();
+        selectedSquare = null;
+        // if (!playerMove)
+        if (((gameMode.equals("White") && !whiteTurn) ||
+            (gameMode.equals("Black") && whiteTurn)) && computer) {
+            computerMove();
+        }
+    }
+
+    public void handleSquareClick(Square clickedSquare) {
+        System.out.println("playerMove: " + playerMove);
+        Boolean end = false;
+        if (playerMove == false)
+            return;
+        if (selectedSquare == null) {
+            // System.out.println("null");
+            // If no square is selected, select the clicked square
+            if (!clickedSquare.isOccupied())
+                return;
+            if (whiteTurn && clickedSquare.getPiece().getColor() == "white") {
+                selectedSquare = clickedSquare;
+                highlightSquare(clickedSquare);
+                showLegalMoves(clickedSquare.getPiece());
+            }
+            else if (!whiteTurn && clickedSquare.getPiece().getColor() == "black") {
+                selectedSquare = clickedSquare;
+                highlightSquare(clickedSquare);
+                showLegalMoves(clickedSquare.getPiece());
+            }
+        } else {
+            // System.out.println("not null");
+
+            if (selectedSquare.isOccupied()) {
+                // System.out.println("selectedSquare.isOccupied()");
+                if (!clickedSquare.isOccupied()) {
+                    // System.out.println("!clickedSquare.isOccupied()");
+                    if (clickedSquare.getisLegalMove()) {
+                        // System.out.println("isLegalMove(clickedSquare)");
+                        pawnDoubleMoved = null;
+                        checkIfPawnDiagonalMove(selectedSquare, clickedSquare);
+                        selectedSquare.getPiece().move(clickedSquare, true);
+                        checkIfCastlingMove(selectedSquare, clickedSquare);
+                        checkIfPawnDoubleMoved(selectedSquare, clickedSquare);
+                        // clearHighlights();
+                        // selectedSquare = null;
+                        // changeTurn();
+                        end = true;
+                    }
+                }
+                else if (clickedSquare.isOccupied()) {
+                    if (clickedSquare.getisLegalMove()) {
+                        // System.out.println("isLegalMove(clickedSquare)");
+                        selectedSquare.getPiece().capture(this, clickedSquare);
+                        // clearHighlights();
+                        // selectedSquare = null;
+                        // changeTurn();
+                        end = true;
+                    }
+                }
+                checkPromotion();
+            }
+            // else {
+            //     clearHighlights();
+            //     selectedSquare = null;
+            // }
+            clearHighlights();
+            selectedSquare = null;
+        }
+        int wcm = whiteCheckmated();
+        int bcm = blackCheckMated();
+        if (wcm == 0 || bcm == 0) {
+            resetGame(); // Start a new game
+        } else if (wcm == 1 || bcm == 1) {
+            System.exit(0); // Exit the application
+        } else {
+            if (end) endTurn();
+        }
+    }
+
+    private String selectGameMode() {
+        Object[] options = {"2-player", "Play as Black", "Play as White"};
+        int choice = JOptionPane.showOptionDialog(
+            null,
+            "Choose your game mode:",
+            "Game Mode Selection",
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[0]
+        );
+
+        switch (choice) {
+            case 0:
+                return "2-Player";
+            case 1:
+                return "Black";
+            case 2:
+                return "White";
+            default:
+                System.exit(0);
+                return null;
+        }
+
+    }
+
+    // private void initializeBoard() {
+    //     // Initialize each square on the board
+    //     // for (int row = 0; row < 8; row++) { // Play Black
+    //     for (int row = 7; row >= 0; row--) { // Play White; Start from row 7 (bottom of array)
+    //         for (int col = 0; col <= 7; col++) {
+    //             squares[col][row] = new Square(col, row);
+    //             add(squares[col][row]);
+    //         }
+    //     }
+    //     // Set up pieces on the board
+    //     setupPieces();
+    // }
+
     private void initializeBoard() {
-        // Initialize each square on the board
-        // for (int row = 0; row < 8; row++) { // Play Black
-        for (int row = 7; row >= 0; row--) { // Play White; Start from row 7 (bottom of array)
-            for (int col = 0; col <= 7; col++) {
+        System.out.println("gameMode: " + gameMode);
+        boolean flipBoard = gameMode.equals("Black"); // Flip for black playing as human
+
+        for (int row = (flipBoard ? 0 : 7); flipBoard ? row <= 7 : row >= 0; row = flipBoard ? row + 1 : row - 1) {
+            for (int col = (flipBoard ? 7 : 0); flipBoard ? col >= 0 : col <= 7; col = flipBoard ? col - 1 : col + 1) {
                 squares[col][row] = new Square(col, row);
                 add(squares[col][row]);
             }
         }
-        // Set up pieces on the board
-        setupPieces();
+
+        setupPieces(); // Set up the initial pieces
     }
 
     private void setupPieces() {
@@ -87,62 +259,7 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
         }
     }
 
-    public void handleSquareClick(Square clickedSquare) {
-        if (selectedSquare == null) {
-            // System.out.println("null");
-            // If no square is selected, select the clicked square
-            if (!clickedSquare.isOccupied())
-                return;
-            if (whiteTurn && clickedSquare.getPiece().getColor() == "white") {
-                selectedSquare = clickedSquare;
-                highlightSquare(clickedSquare);
-                showLegalMoves(clickedSquare.getPiece());
-            }
-            else if (!whiteTurn && clickedSquare.getPiece().getColor() == "black") {
-                selectedSquare = clickedSquare;
-                highlightSquare(clickedSquare);
-                showLegalMoves(clickedSquare.getPiece());
-            }
-        } else {
-            // System.out.println("not null");
 
-            if (selectedSquare.isOccupied()) {
-                // System.out.println("selectedSquare.isOccupied()");
-                if (!clickedSquare.isOccupied()) {
-                    // System.out.println("!clickedSquare.isOccupied()");
-                    if (clickedSquare.getisLegalMove()) {
-                        // System.out.println("isLegalMove(clickedSquare)");
-                        pawnDoubleMoved = null;
-                        checkIfPawnDiagonalMove(selectedSquare, clickedSquare);
-                        selectedSquare.getPiece().move(clickedSquare, true);
-                        checkIfCastlingMove(selectedSquare, clickedSquare);
-                        checkIfPawnDoubleMoved(selectedSquare, clickedSquare);
-                        clearHighlights();
-                        selectedSquare = null;
-                        changeTurn();
-                    }
-                }
-                else if (clickedSquare.isOccupied()) {
-                    if (clickedSquare.getisLegalMove()) {
-                        // System.out.println("isLegalMove(clickedSquare)");
-                        selectedSquare.getPiece().capture(this, clickedSquare);
-                        clearHighlights();
-                        selectedSquare = null;
-                        changeTurn();
-                    }
-                }
-                checkPromotion();
-            }
-            else {
-                clearHighlights();
-                selectedSquare = null;
-            }
-            clearHighlights();
-            selectedSquare = null;
-        }
-        whiteCheckmated();
-        blackCheckMated();
-    }
 
     private void changeTurn() {
         if (whiteTurn == true)
@@ -160,6 +277,7 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
         Map<Piece, List<Square>> legalMovesMap = new HashMap<>();
         // Iterate through all pieces
         for (Piece piece : pieces) {
+            System.out.println("rank:"+piece.getSquare().getRank()+" file:"+piece.getSquare().getFile());
             // Get the legal moves for the current piece
             List<Square> legalMoves = getLegalMoves(piece);
             // Put the piece and its legal moves into the map
@@ -192,7 +310,7 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
                     if (s != null) {
                         legalMoves.add(s);
                     }
-                    else System.out.println("checkEnPassant(white pawn)=null");
+                    // else System.out.println("checkEnPassant(white pawn)=null");
                 }
             }
             else { //White King is in Check
@@ -233,7 +351,7 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
                     if (s != null) {
                         legalMoves.add(s);
                     }
-                    else System.out.println("checkEnPassant(black pawn)=null");
+                    // else System.out.println("checkEnPassant(black pawn)=null");
                 }
             }
             else { //Black King is in Check
@@ -317,7 +435,7 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
                     if (s != null) {
                         legalMoves.add(s);
                     }
-                    else System.out.println("checkEnPassant(white pawn)=null");
+                    // else System.out.println("checkEnPassant(white pawn)=null");
                 }
             }
         }
@@ -365,7 +483,7 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
                     if (s != null) {
                         legalMoves.add(s);
                     }
-                    else System.out.println("checkEnPassant(black pawn)=null");
+                    // else System.out.println("checkEnPassant(black pawn)=null");
                 }
             }
         }
@@ -454,14 +572,14 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
         return checking_pieces;
     }
 
-    private boolean whiteCheckmated() {
+    private int whiteCheckmated() {
         // Get all legal moves for White's pieces
         Map<Piece, List<Square>> legalMovesMap = getAllLegalMoves(Wpieces);
         // Check if all pieces have zero legal moves
         for (Map.Entry<Piece, List<Square>> entry : legalMovesMap.entrySet()) {
             if (!entry.getValue().isEmpty()) {
                 // If any piece has legal moves, White is not checkmated
-                return false;
+                return -1;
             }
         }
         // If no pieces have legal moves, verify if the White King is in check
@@ -471,8 +589,7 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
             // return true;
 
             // White is checkmated, trigger alert with "New Game" button
-            Object[] options = {"New Game"}; // Custom button label
-
+            Object[] options = {"New Game", "Quit"};
             int result = JOptionPane.showOptionDialog(
                 null,
                 "Black wins! Start a new game?",
@@ -484,21 +601,17 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
                 options[0] // Default selected option
             );
 
-            // If "New Game" is clicked, reset the game
-            if (result == 0) {
-                resetGame();
-            }
+            // if (result == 0) {
+            //     resetGame(); // Start a new game
+            // } else if (result == 1) {
+            //     System.exit(0); // Exit the application
+            // }
 
-            return true;
+            return result;
         }
         else {
-            // // White is stalemated, trigger alert
-            // JOptionPane.showMessageDialog(null, "Stalemate! Draw!");
-            // return true;
-
-            // White is checkmated, trigger alert with "New Game" button
-            Object[] options = {"New Game"}; // Custom button label
-
+            // White is stalemated, trigger alert
+            Object[] options = {"New Game", "Quit"};
             int result = JOptionPane.showOptionDialog(
                 null,
                 "Draw! Start a new game?",
@@ -509,36 +622,67 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
                 options,
                 options[0] // Default selected option
             );
-
             // If "New Game" is clicked, reset the game
-            if (result == 0) {
-                resetGame();
-            }
-
-            return true;
+            // if (result == 0) {
+            //     resetGame(); // Start a new game
+            // } else if (result == 1) {
+            //     System.exit(0); // Exit the application
+            // }
+            return result;
         }
     }
 
-    private boolean blackCheckMated() {
+    private int blackCheckMated() {
         // Get all legal moves for Black's pieces
         Map<Piece, List<Square>> legalMovesMap = getAllLegalMoves(Bpieces);
         // Check if all pieces have zero legal moves
         for (Map.Entry<Piece, List<Square>> entry : legalMovesMap.entrySet()) {
             if (!entry.getValue().isEmpty()) {
                 // If any piece has legal moves, Black is not checkmated
-                return false;
+                return -1;
             }
         }
         // If no pieces have legal moves, verify if the Black King is in check
         if (!isBlackInCheck().isEmpty()) {
-            // Black is checkmated, trigger alert
-            JOptionPane.showMessageDialog(null, "Checkmate! White wins!");
-            return true;
+            // Black is checkmated, trigger alert with "New Game" button
+            Object[] options = {"New Game", "Quit"};
+            int result = JOptionPane.showOptionDialog(
+                null,
+                "White wins! Start a new game?",
+                "Checkmate!",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.INFORMATION_MESSAGE,
+                null,
+                options,
+                options[0] // Default selected option
+            );
+            // if (result == 0) {
+            //     resetGame(); // Start a new game
+            // } else if (result == 1) {
+            //     System.exit(0); // Exit the application
+            // }
+            return result;
         }
         else {
             // Black is stalemated, trigger alert
-            JOptionPane.showMessageDialog(null, "Stalemate! Draw!");
-            return true;
+            Object[] options = {"New Game", "Quit"};
+            int result = JOptionPane.showOptionDialog(
+                null,
+                "Draw! Start a new game?",
+                "Stalemate",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.INFORMATION_MESSAGE,
+                null,
+                options,
+                options[0] // Default selected option
+            );
+            // If "New Game" is clicked, reset the game
+            // if (result == 0) {
+            //     resetGame(); // Start a new game
+            // } else if (result == 1) {
+            //     System.exit(0); // Exit the application
+            // }
+            return result;
         }
     }
 
@@ -606,21 +750,21 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
         if (p1 instanceof Pawn) {
             if (c1.equals("white")) {
                 if ((file2 == file1-1) && (rank2 == rank1+1)) {
-                    Wpieces.remove(squares[file1-1][rank1].getPiece());
+                    Bpieces.remove(squares[file1-1][rank1].getPiece());
                     squares[file1-1][rank1].removePiece(true); // if isoccupied black pawn?
                 }
                 else if ((file2 == file1+1) && (rank2 == rank1+1)) {
-                    Wpieces.remove(squares[file1+1][rank1].getPiece());
+                    Bpieces.remove(squares[file1+1][rank1].getPiece());
                     squares[file1+1][rank1].removePiece(true); // if isoccupied black pawn?
                 }
             }
             if (c1.equals("black")) {
                 if ((file2 == file1-1) && (rank2 == rank1-1)) {
-                    Bpieces.remove(squares[file1-1][rank1].getPiece());
+                    Wpieces.remove(squares[file1-1][rank1].getPiece());
                     squares[file1-1][rank1].removePiece(true); // if isoccupied white pawn?
                 }
                 else if ((file2 == file1+1) && (rank2 == rank1-1)) {
-                    Bpieces.remove(squares[file1+1][rank1].getPiece());
+                    Wpieces.remove(squares[file1+1][rank1].getPiece());
                     squares[file1+1][rank1].removePiece(true); // if isoccupied white pawn?
                 }
             }
@@ -663,26 +807,44 @@ public class Board extends JPanel {//implements MouseListener, MouseMotionListen
         return false;
     }
 
+    // private void resetGame() {
+    //     // Clear the current pieces from the board
+    //     for (int row = 0; row < 8; row++) {
+    //         for (int col = 0; col < 8; col++) {
+    //             squares[row][col].removePiece(true);
+    //         }
+    //     }
+    //     Wpieces.clear();
+    //     Bpieces.clear();
+    //
+    //     // Reset the turn to White
+    //     whiteTurn = true;
+    //
+    //     // Re-initialize the board and pieces
+    //     setupPieces();
+    //
+    //     // Refresh the GUI (this may depend on your implementation)
+    //     revalidate();
+    //     repaint();
+    // }
+
     private void resetGame() {
-        // Clear the current pieces from the board
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
-                squares[row][col].removePiece(true);
-            }
-        }
         Wpieces.clear();
         Bpieces.clear();
+        // Dispose of the current GameWindow
+        JFrame topFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (topFrame != null) {
+            topFrame.dispose();
+        }
 
-        // Reset the turn to White
-        whiteTurn = true;
+        // Create a new GameWindow instance
+        SwingUtilities.invokeLater(() -> new GameWindow());
 
-        // Re-initialize the board and pieces
-        setupPieces();
+        // JButton newGameButton = new JButton("New Game");
+        // newGameButton.addActionListener(e -> resetGame());
 
-        // Refresh the GUI (this may depend on your implementation)
-        revalidate();
-        repaint();
     }
+
 
 
 }
